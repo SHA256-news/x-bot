@@ -79,7 +79,24 @@ def save_state(path: Path, state: MutableMapping[str, Any]) -> None:
         json.dump(state, handle, indent=2, sort_keys=True)
 
 
-def create_event_registry(api_key: Optional[str]) -> EventRegistry:
+def resolve_event_registry_api_key() -> str:
+    """Return the Event Registry API key from known environment variables."""
+
+    for env_name in ("EVENT_REGISTRY_API_KEY", "NEWSAPI_API_KEY"):
+        api_key = os.getenv(env_name)
+        if api_key:
+            if env_name != "EVENT_REGISTRY_API_KEY":
+                LOGGER.debug(
+                    "Using %s as the Event Registry credential source", env_name
+                )
+            return api_key
+    raise BotConfigurationError(
+        "EVENT_REGISTRY_API_KEY is required to connect to Event Registry. "
+        "Provide the key via EVENT_REGISTRY_API_KEY or NEWSAPI_API_KEY."
+    )
+
+
+def create_event_registry(api_key: str) -> EventRegistry:
     """Create an :class:`~eventregistry.EventRegistry` client."""
 
     if not api_key:
@@ -97,7 +114,16 @@ def create_twitter_client() -> tweepy.Client:
     api_key = os.getenv("TWITTER_API_KEY")
     api_secret = os.getenv("TWITTER_API_SECRET")
     access_token = os.getenv("TWITTER_ACCESS_TOKEN")
-    access_secret = os.getenv("TWITTER_ACCESS_SECRET")
+    access_secret = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
+    secret_env_name = "TWITTER_ACCESS_TOKEN_SECRET"
+    if not access_secret:
+        legacy_secret = os.getenv("TWITTER_ACCESS_SECRET")
+        if legacy_secret:
+            LOGGER.debug(
+                "Using TWITTER_ACCESS_SECRET as fallback for TWITTER_ACCESS_TOKEN_SECRET"
+            )
+            access_secret = legacy_secret
+            secret_env_name = "TWITTER_ACCESS_SECRET"
 
     missing = [
         name
@@ -105,7 +131,7 @@ def create_twitter_client() -> tweepy.Client:
             ("TWITTER_API_KEY", api_key),
             ("TWITTER_API_SECRET", api_secret),
             ("TWITTER_ACCESS_TOKEN", access_token),
-            ("TWITTER_ACCESS_SECRET", access_secret),
+            (secret_env_name, access_secret),
         ]
         if not value
     ]
@@ -449,7 +475,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     state = load_state(state_path)
 
     try:
-        er = create_event_registry(os.getenv("EVENT_REGISTRY_API_KEY"))
+        er = create_event_registry(resolve_event_registry_api_key())
         twitter_client = create_twitter_client()
     except BotConfigurationError as exc:
         LOGGER.error(str(exc))

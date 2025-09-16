@@ -43,12 +43,12 @@ Set the following values before running the script:
 
 | Variable | Description |
 | --- | --- |
-| `EVENT_REGISTRY_API_KEY` | API key used to authenticate with Event Registry. |
+| `EVENT_REGISTRY_API_KEY` | API key used to authenticate with Event Registry. (`NEWSAPI_API_KEY` is accepted as a fallback.) |
 | `TWITTER_BEARER_TOKEN` | Optional bearer token for Tweepy (used for rate limit handling). |
 | `TWITTER_API_KEY` | Twitter consumer key. |
 | `TWITTER_API_SECRET` | Twitter consumer secret. |
 | `TWITTER_ACCESS_TOKEN` | Twitter access token with write permissions. |
-| `TWITTER_ACCESS_SECRET` | Twitter access token secret. |
+| `TWITTER_ACCESS_TOKEN_SECRET` | Twitter access token secret. (`TWITTER_ACCESS_SECRET` is also recognised for compatibility.) |
 
 Optional environment variables provide additional control:
 
