@@ -1,0 +1,2 @@
+eventregistry>=9.1
+tweepy>=4.16.0
