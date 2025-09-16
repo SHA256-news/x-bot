@@ -358,6 +358,7 @@ def post_articles(
     """Post unseen articles to Twitter and update state."""
 
     posted_uris: List[str] = list(state.get("postedArticleUris", []))
+    updated_history = False
     for article in articles:
         uri = article.get("uri")
         if not uri:
@@ -370,19 +371,22 @@ def post_articles(
         tweet = format_tweet(article)
         if dry_run:
             LOGGER.info("[DRY RUN] Would post tweet: %s", tweet)
-        else:
-            LOGGER.info("Posting tweet for article %s", uri)
-            try:
-                twitter_client.create_tweet(text=tweet)
-            except tweepy.TweepyException as exc:  # pragma: no cover - external API
-                LOGGER.error("Failed to post tweet for %s: %s", uri, exc)
-                continue
+            continue
+
+        LOGGER.info("Posting tweet for article %s", uri)
+        try:
+            twitter_client.create_tweet(text=tweet)
+        except tweepy.TweepyException as exc:  # pragma: no cover - external API
+            LOGGER.error("Failed to post tweet for %s: %s", uri, exc)
+            continue
 
         posted_uris.append(uri)
         if len(posted_uris) > POSTED_HISTORY_LIMIT:
             posted_uris = posted_uris[-POSTED_HISTORY_LIMIT:]
+        updated_history = True
 
-    state["postedArticleUris"] = posted_uris
+    if not dry_run and (updated_history or "postedArticleUris" not in state):
+        state["postedArticleUris"] = posted_uris
 
 
 def configure_logging(level: str) -> None:

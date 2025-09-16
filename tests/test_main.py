@@ -101,6 +101,25 @@ class MainModuleTests(unittest.TestCase):
         self.assertIn("uri-2", state["postedArticleUris"])
         self.assertNotIn("uri-1", client.tweets[0])  # ensure we only posted new URI
 
+    def test_post_articles_dry_run_does_not_post_or_update_state(self):
+        client = FakeTwitterClient()
+        posted = ["uri-1"]
+        state = {"postedArticleUris": posted}
+        articles = [
+            {
+                "uri": "uri-2",
+                "title": "Brand new Mining Report",
+                "body": "Details about Bitcoin mining advancements",
+                "url": "https://example.com/report",
+            }
+        ]
+
+        main.post_articles(client, articles, state=state, dry_run=True)
+
+        self.assertEqual(client.tweets, [])
+        self.assertIs(state["postedArticleUris"], posted)
+        self.assertEqual(state["postedArticleUris"], ["uri-1"])
+
     def test_is_bitcoin_mining_article_detects_keyword(self):
         article = {"title": "Global Bitcoin mining trends", "body": ""}
 
