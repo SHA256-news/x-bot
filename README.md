@@ -28,17 +28,27 @@ pip install -r requirements.txt
 
 ## Configuration
 
-The bot is configured entirely through environment variables. Set the
-following values before running the script:
+The bot is configured entirely through environment variables. In the Codex
+environment, define the required secrets via the **Secrets** pane and allow the
+runner to inject them into your commands. The provided `scripts/setup.sh`
+helper script validates that the secrets are available and can be used to run
+commands with the injected credentials.
+
+```bash
+# Check credentials and run the bot in dry-run mode
+./scripts/setup.sh python -m bot.main --dry-run
+```
+
+Set the following values before running the script:
 
 | Variable | Description |
 | --- | --- |
-| `EVENT_REGISTRY_API_KEY` | API key used to authenticate with Event Registry. |
+| `EVENT_REGISTRY_API_KEY` | API key used to authenticate with Event Registry. (`NEWSAPI_API_KEY` is accepted as a fallback.) |
 | `TWITTER_BEARER_TOKEN` | Optional bearer token for Tweepy (used for rate limit handling). |
 | `TWITTER_API_KEY` | Twitter consumer key. |
 | `TWITTER_API_SECRET` | Twitter consumer secret. |
 | `TWITTER_ACCESS_TOKEN` | Twitter access token with write permissions. |
-| `TWITTER_ACCESS_SECRET` | Twitter access token secret. |
+| `TWITTER_ACCESS_TOKEN_SECRET` | Twitter access token secret. (`TWITTER_ACCESS_SECRET` is also recognised for compatibility.) |
 
 Optional environment variables provide additional control:
 
@@ -57,10 +67,15 @@ checkpoints.
 
 ## Usage
 
-After configuring the environment variables, run the bot:
+After configuring the environment variables, run the bot directly or via the
+setup helper:
 
 ```bash
+# Direct invocation (environment variables already exported)
 python -m bot.main
+
+# Or via the Codex-aware helper script
+./scripts/setup.sh python -m bot.main
 ```
 
 Key command-line options:
