@@ -58,12 +58,17 @@ Optional environment variables provide additional control:
 | `BOT_STATE_PATH` | `bot/state.json` | File path used to persist API checkpoints and posted article URIs. |
 | `BOT_ARTICLE_LANG` | *(unset)* | Restrict Event Registry results to a specific ISO language code. |
 | `BOT_POLL_INTERVAL` | `300` | Delay (in seconds) between polls when running with `--loop`. |
+| `BOT_BOOTSTRAP_COUNT` | `0` | Maximum number of articles to post on first run with fresh state. Helps avoid silence on initial deployment while preventing flooding. |
 | `BOT_LOG_LEVEL` | `INFO` | Logging verbosity. |
 
+The bot uses relaxed matching to detect Bitcoin mining articles. It will match articles that either:
+1. Contain the exact query term (e.g., "bitcoin mining") in the title, body, or concept labels, OR
+2. Contain both a Bitcoin signal (bitcoin, BTC) AND a mining signal (mining, miner, miners, hashrate, hash rate, hashpower, difficulty, ASIC, ASICs, rig, rigs, exahash, terahash, proof-of-work, proof of work) anywhere in the content.
+
 The state file stores the last known `updatesAfterNewsUri`,
-`updatesAfterBlogUri`, `updatesAfterPrUri`, and a short history of article
+`updatesAfterBlogUri`, `updatesAfterPrUri`, `bootstrapCompleted` flag, and a short history of article
 URIs that have already been posted to Twitter. Deleting this file resets the
-checkpoints.
+checkpoints and enables bootstrap mode again.
 
 ## Usage
 
@@ -83,6 +88,7 @@ Key command-line options:
 - `--loop`: continuously poll Event Registry at the configured interval.
 - `--dry-run`: fetch and log new articles without posting to Twitter.
 - `--state-file`: override the location of the JSON state file.
+- `--bootstrap-count`: override the maximum number of articles to post on first run with fresh state.
 
 Example (continuous polling every 10 minutes):
 

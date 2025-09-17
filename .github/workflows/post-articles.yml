@@ -46,6 +46,7 @@ jobs:
           # TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
           BOT_QUERY: "bitcoin mining"
           BOT_ARTICLE_LANG: "eng"
+          BOT_BOOTSTRAP_COUNT: "1"
           # BOT_POLL_INTERVAL: "300"
           # BOT_LOG_LEVEL: "INFO"
         run: |
