@@ -90,6 +90,18 @@ Example (continuous polling every 10 minutes):
 BOT_POLL_INTERVAL=600 python -m bot.main --loop
 ```
 
+## Automation
+
+The repository includes a GitHub Actions workflow that automatically runs the bot every 15 minutes. The workflow:
+
+- Executes on a cron schedule (`*/15 * * * *`) and supports manual dispatch
+- Uses the repository secrets listed in the Configuration section above
+- Persists API checkpoints and posted article history in `.github/bot-state/state.json`
+- Commits state changes back to the repository to maintain continuity between runs
+- Includes concurrency controls to prevent overlapping executions
+
+The automation runs the bot once per execution (no loop) and handles all state persistence automatically.
+
 ## Development Notes
 
 - The package entry point lives in `bot/main.py`.
