@@ -1,9 +1,11 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from bot import main
+from unittest import mock
 
 
 class FakeEventRegistry:
@@ -25,6 +27,16 @@ class FakeTwitterClient:
 
 
 class MainModuleTests(unittest.TestCase):
+    def test_create_twitter_client_allows_missing_when_requested(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            client = main.create_twitter_client(allow_missing=True)
+        self.assertIsNone(client)
+
+    def test_create_twitter_client_requires_credentials_by_default(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(main.BotConfigurationError):
+                main.create_twitter_client()
+
     def test_sync_updates_after_writes_all_known_keys(self):
         state = {
             "updatesAfterNewsUri": None,
@@ -119,6 +131,16 @@ class MainModuleTests(unittest.TestCase):
         self.assertEqual(client.tweets, [])
         self.assertIs(state["postedArticleUris"], posted)
         self.assertEqual(state["postedArticleUris"], ["uri-1"])
+
+    def test_post_articles_requires_client_when_not_dry_run(self):
+        state = {"postedArticleUris": []}
+        with self.assertRaises(main.BotConfigurationError):
+            main.post_articles(
+                None,
+                [{"uri": "uri-3", "title": "Example", "body": "Body"}],
+                state=state,
+                dry_run=False,
+            )
 
     def test_is_bitcoin_mining_article_detects_keyword(self):
         article = {"title": "Global Bitcoin mining trends", "body": ""}

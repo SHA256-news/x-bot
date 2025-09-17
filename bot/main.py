@@ -107,8 +107,14 @@ def create_event_registry(api_key: str) -> EventRegistry:
     return EventRegistry(apiKey=api_key)
 
 
-def create_twitter_client() -> tweepy.Client:
-    """Create and configure the Tweepy client."""
+def create_twitter_client(*, allow_missing: bool = False) -> Optional[tweepy.Client]:
+    """Create and configure the Tweepy client.
+
+    When ``allow_missing`` is ``True`` the function returns ``None`` instead of
+    raising :class:`BotConfigurationError` if required credentials are
+    unavailable. This is primarily used for ``--dry-run`` executions where the
+    Twitter client is not required to post updates.
+    """
 
     bearer_token = os.getenv("TWITTER_BEARER_TOKEN")
     api_key = os.getenv("TWITTER_API_KEY")
@@ -137,6 +143,12 @@ def create_twitter_client() -> tweepy.Client:
     ]
     if missing:
         joined = ", ".join(missing)
+        if allow_missing:
+            LOGGER.info(
+                "Skipping Twitter client initialisation; missing credentials: %s",
+                joined,
+            )
+            return None
         raise BotConfigurationError(
             f"Missing Twitter credentials: {joined}. Set the variables before running."
         )
@@ -349,13 +361,18 @@ def format_tweet(article: Dict[str, Any]) -> str:
 
 
 def post_articles(
-    twitter_client: tweepy.Client,
+    twitter_client: Optional[tweepy.Client],
     articles: Iterable[Dict[str, Any]],
     *,
     state: MutableMapping[str, Any],
     dry_run: bool,
 ) -> None:
     """Post unseen articles to Twitter and update state."""
+
+    if not dry_run and twitter_client is None:
+        raise BotConfigurationError(
+            "A Twitter client is required when not running in dry-run mode."
+        )
 
     posted_uris: List[str] = list(state.get("postedArticleUris", []))
     updated_history = False
@@ -446,7 +463,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 def run_once(
     *,
     er: EventRegistry,
-    twitter_client: tweepy.Client,
+    twitter_client: Optional[tweepy.Client],
     query: str,
     article_lang: Optional[str],
     state: MutableMapping[str, Any],
@@ -480,7 +497,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         er = create_event_registry(resolve_event_registry_api_key())
-        twitter_client = create_twitter_client()
+        twitter_client = create_twitter_client(allow_missing=args.dry_run)
     except BotConfigurationError as exc:
         LOGGER.error(str(exc))
         return 2
