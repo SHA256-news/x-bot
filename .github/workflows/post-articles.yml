@@ -44,10 +44,12 @@ jobs:
 
           # Optional
           # TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
-          BOT_QUERY: "bitcoin mining"
+          BOT_BOOTSTRAP_COUNT: "1"
+          # TODO: Revert these temporary test settings after confirming the bot works
+          BOT_QUERY: "bitcoin"  # Broader query for testing
+          BOT_LOG_LEVEL: "DEBUG"  # More verbose logging for testing
           BOT_ARTICLE_LANG: "eng"
           # BOT_POLL_INTERVAL: "300"
-          # BOT_LOG_LEVEL: "INFO"
         run: |
           python -m bot.main --state-file ".github/bot-state/state.json"
 

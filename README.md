@@ -59,10 +59,15 @@ Optional environment variables provide additional control:
 | `BOT_ARTICLE_LANG` | *(unset)* | Restrict Event Registry results to a specific ISO language code. |
 | `BOT_POLL_INTERVAL` | `300` | Delay (in seconds) between polls when running with `--loop`. |
 | `BOT_LOG_LEVEL` | `INFO` | Logging verbosity. |
+| `BOT_BOOTSTRAP_COUNT` | `0` | Number of articles to post on first run (bootstrap mode). |
+
+The bot uses a relaxed matcher that detects Bitcoin mining articles in two ways:
+1. **Exact match**: The configured query phrase appears in title/body/concepts (original behavior)
+2. **Signal-based match**: Both a Bitcoin signal (`bitcoin`, `btc`) AND a mining signal (`mining`, `miner`, `miners`, `hashrate`, `hash rate`, `hashpower`, `hash power`, `difficulty`, `asic`, `asics`, `rig`, `rigs`, `exahash`, `terahash`, `proof-of-work`, `proof of work`) appear across title/body/concepts
 
 The state file stores the last known `updatesAfterNewsUri`,
-`updatesAfterBlogUri`, `updatesAfterPrUri`, and a short history of article
-URIs that have already been posted to Twitter. Deleting this file resets the
+`updatesAfterBlogUri`, `updatesAfterPrUri`, a short history of article
+URIs that have already been posted to Twitter, and a `bootstrapCompleted` flag. Deleting this file resets the
 checkpoints.
 
 ## Usage
@@ -83,11 +88,21 @@ Key command-line options:
 - `--loop`: continuously poll Event Registry at the configured interval.
 - `--dry-run`: fetch and log new articles without posting to Twitter.
 - `--state-file`: override the location of the JSON state file.
+- `--bootstrap-count`: number of articles to post on first run (bootstrap mode).
 
 Example (continuous polling every 10 minutes):
 
 ```bash
 BOT_POLL_INTERVAL=600 python -m bot.main --loop
+```
+
+### Bootstrap Mode
+
+When `BOT_BOOTSTRAP_COUNT` is set to a positive integer, the bot will cap the number of posts to that value on the first run with fresh state. After the first run, it will mark bootstrap as completed and post articles normally. This is useful for initial deployments to avoid flooding Twitter with backlog articles.
+
+```bash
+# Bootstrap with maximum 1 post on first run
+BOT_BOOTSTRAP_COUNT=1 python -m bot.main
 ```
 
 ## Development Notes

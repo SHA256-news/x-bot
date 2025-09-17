@@ -150,6 +150,97 @@ class MainModuleTests(unittest.TestCase):
             main.is_bitcoin_mining_article({"title": "Random", "body": "Irrelevant"}, query="bitcoin mining")
         )
 
+    def test_is_bitcoin_mining_article_relaxed_matcher(self):
+        # Test case 1: BTC + hashrate + miners + ASICs
+        article1 = {
+            "title": "BTC hashrate hits new ATH as miners deploy new ASICs",
+            "body": "",
+            "concepts": []
+        }
+        self.assertTrue(main.is_bitcoin_mining_article(article1, query="bitcoin mining"))
+
+        # Test case 2: Bitcoin + difficulty + exahash
+        article2 = {
+            "title": "Bitcoin difficulty adjusts after exahash surge",
+            "body": "",
+            "concepts": []
+        }
+        self.assertTrue(main.is_bitcoin_mining_article(article2, query="bitcoin mining"))
+
+        # Test case 3: Bitcoin signal but no mining signal
+        article3 = {
+            "title": "Bitcoin price hits new high",
+            "body": "Trading volume increased.",
+            "concepts": []
+        }
+        self.assertFalse(main.is_bitcoin_mining_article(article3, query="bitcoin mining"))
+
+        # Test case 4: Mining signal but no Bitcoin signal
+        article4 = {
+            "title": "Gold mining operations expand",
+            "body": "New miners deployed in the field.",
+            "concepts": []
+        }
+        self.assertFalse(main.is_bitcoin_mining_article(article4, query="bitcoin mining"))
+
+        # Test case 5: Both signals in concepts
+        article5 = {
+            "title": "Industry News",
+            "body": "Various updates.",
+            "concepts": [
+                {"label": {"eng": "Bitcoin technology"}},
+                {"label": {"eng": "Mining equipment"}}
+            ]
+        }
+        self.assertTrue(main.is_bitcoin_mining_article(article5, query="bitcoin mining"))
+
+    def test_bootstrap_logic_caps_posts_and_sets_completed(self):
+        # Test bootstrap logic with fresh state
+        client = FakeTwitterClient()
+        state = {"postedArticleUris": [], "bootstrapCompleted": False}
+        articles = [
+            {"uri": "uri-1", "title": "First Article", "body": "Content", "url": "https://example.com/1"},
+            {"uri": "uri-2", "title": "Second Article", "body": "Content", "url": "https://example.com/2"},
+            {"uri": "uri-3", "title": "Third Article", "body": "Content", "url": "https://example.com/3"},
+        ]
+
+        # Bootstrap with count=1, should only post 1 article
+        main.post_articles(client, articles, state=state, dry_run=False, bootstrap_count=1)
+
+        self.assertEqual(len(client.tweets), 1)
+        self.assertEqual(len(state["postedArticleUris"]), 1)
+        self.assertTrue(state["bootstrapCompleted"])
+        self.assertIn("uri-1", state["postedArticleUris"])
+
+    def test_bootstrap_logic_with_zero_matches(self):
+        # Test bootstrap logic when no articles match
+        client = FakeTwitterClient()
+        state = {"postedArticleUris": [], "bootstrapCompleted": False}
+        articles = []  # No articles
+
+        # Bootstrap with count=1, should still set bootstrapCompleted=True
+        main.post_articles(client, articles, state=state, dry_run=False, bootstrap_count=1)
+
+        self.assertEqual(len(client.tweets), 0)
+        self.assertEqual(len(state["postedArticleUris"]), 0)
+        self.assertTrue(state["bootstrapCompleted"])
+
+    def test_bootstrap_logic_already_completed(self):
+        # Test that bootstrap logic is skipped when already completed
+        client = FakeTwitterClient()
+        state = {"postedArticleUris": [], "bootstrapCompleted": True}
+        articles = [
+            {"uri": "uri-1", "title": "First Article", "body": "Content", "url": "https://example.com/1"},
+            {"uri": "uri-2", "title": "Second Article", "body": "Content", "url": "https://example.com/2"},
+        ]
+
+        # Bootstrap with count=1, but already completed, should post all articles
+        main.post_articles(client, articles, state=state, dry_run=False, bootstrap_count=1)
+
+        self.assertEqual(len(client.tweets), 2)
+        self.assertEqual(len(state["postedArticleUris"]), 2)
+        self.assertTrue(state["bootstrapCompleted"])
+
     def test_state_round_trip(self):
         with tempfile.TemporaryDirectory() as tempdir:
             path = Path(tempdir) / "state.json"
@@ -161,6 +252,7 @@ class MainModuleTests(unittest.TestCase):
                     "updatesAfterBlogUri": None,
                     "updatesAfterPrUri": None,
                     "postedArticleUris": [],
+                    "bootstrapCompleted": False,
                 },
             )
 

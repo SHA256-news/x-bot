@@ -46,8 +46,8 @@ def load_state(path: Path) -> Dict[str, Any]:
     """Load persisted state from ``path``.
 
     The state dictionary always provides ``updatesAfterNewsUri``,
-    ``updatesAfterBlogUri``, ``updatesAfterPrUri`` and
-    ``postedArticleUris`` keys.
+    ``updatesAfterBlogUri``, ``updatesAfterPrUri``, ``postedArticleUris``
+    and ``bootstrapCompleted`` keys.
     """
 
     if not path.exists():
@@ -56,6 +56,7 @@ def load_state(path: Path) -> Dict[str, Any]:
             "updatesAfterBlogUri": None,
             "updatesAfterPrUri": None,
             "postedArticleUris": [],
+            "bootstrapCompleted": False,
         }
 
     try:
@@ -68,6 +69,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("updatesAfterBlogUri", None)
     data.setdefault("updatesAfterPrUri", None)
     data.setdefault("postedArticleUris", [])
+    data.setdefault("bootstrapCompleted", False)
     return data
 
 
@@ -318,6 +320,8 @@ def is_bitcoin_mining_article(article: Dict[str, Any], *, query: str) -> bool:
         str(article.get("title", "")),
         str(article.get("body", "")),
     ]
+    
+    # Check for exact query phrase (original behavior)
     for field in fields:
         if query_lower in field.lower():
             return True
@@ -325,7 +329,30 @@ def is_bitcoin_mining_article(article: Dict[str, Any], *, query: str) -> bool:
         label = concept.get("label", {}).get("eng") if isinstance(concept, dict) else None
         if label and query_lower in str(label).lower():
             return True
-    return False
+    
+    # Relaxed matcher: Bitcoin signal + mining signal
+    bitcoin_signals = ["bitcoin", "btc"]
+    mining_signals = [
+        "mining", "miner", "miners", "hashrate", "hash rate", "hashpower", "hash power",
+        "difficulty", "asic", "asics", "rig", "rigs", "exahash", "terahash",
+        "proof-of-work", "proof of work"
+    ]
+    
+    # Collect all text content for signal detection
+    all_content = []
+    all_content.extend(fields)
+    for concept in article.get("concepts", []) or []:
+        label = concept.get("label", {}).get("eng") if isinstance(concept, dict) else None
+        if label:
+            all_content.append(str(label))
+    
+    combined_text = " ".join(all_content).lower()
+    
+    # Check if both Bitcoin signal and mining signal are present
+    has_bitcoin_signal = any(signal in combined_text for signal in bitcoin_signals)
+    has_mining_signal = any(signal in combined_text for signal in mining_signals)
+    
+    return has_bitcoin_signal and has_mining_signal
 
 
 def format_tweet(article: Dict[str, Any]) -> str:
@@ -366,6 +393,7 @@ def post_articles(
     *,
     state: MutableMapping[str, Any],
     dry_run: bool,
+    bootstrap_count: int = 0,
 ) -> None:
     """Post unseen articles to Twitter and update state."""
 
@@ -376,6 +404,11 @@ def post_articles(
 
     posted_uris: List[str] = list(state.get("postedArticleUris", []))
     updated_history = False
+    
+    # Bootstrap logic: cap posts on first run if bootstrap active
+    is_bootstrap_run = bootstrap_count > 0 and not state.get("bootstrapCompleted", False)
+    post_count = 0
+    
     for article in articles:
         uri = article.get("uri")
         if not uri:
@@ -385,9 +418,15 @@ def post_articles(
             LOGGER.debug("Skipping already-posted article %s", uri)
             continue
 
+        # Check bootstrap limit
+        if is_bootstrap_run and post_count >= bootstrap_count:
+            LOGGER.info("Bootstrap mode: reached post limit of %d", bootstrap_count)
+            break
+
         tweet = format_tweet(article)
         if dry_run:
             LOGGER.info("[DRY RUN] Would post tweet: %s", tweet)
+            post_count += 1
             continue
 
         LOGGER.info("Posting tweet for article %s", uri)
@@ -401,6 +440,13 @@ def post_articles(
         if len(posted_uris) > POSTED_HISTORY_LIMIT:
             posted_uris = posted_uris[-POSTED_HISTORY_LIMIT:]
         updated_history = True
+        post_count += 1
+
+    # Mark bootstrap as completed after first run
+    if is_bootstrap_run:
+        state["bootstrapCompleted"] = True
+        updated_history = True
+        LOGGER.info("Bootstrap mode completed after posting %d articles", post_count)
 
     if not dry_run and (updated_history or "postedArticleUris" not in state):
         state["postedArticleUris"] = posted_uris
@@ -457,6 +503,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=os.getenv("BOT_LOG_LEVEL", "INFO"),
         help="Logging verbosity (default: %(default)s)",
     )
+    parser.add_argument(
+        "--bootstrap-count",
+        type=int,
+        default=int(os.getenv("BOT_BOOTSTRAP_COUNT", "0")),
+        help="Number of articles to post on first run (default: %(default)s)",
+    )
     return parser.parse_args(argv)
 
 
@@ -468,6 +520,7 @@ def run_once(
     article_lang: Optional[str],
     state: MutableMapping[str, Any],
     dry_run: bool,
+    bootstrap_count: int = 0,
 ) -> None:
     """Execute a single poll/post cycle."""
 
@@ -483,7 +536,7 @@ def run_once(
         LOGGER.info("No Bitcoin mining updates found in this cycle")
         return
 
-    post_articles(twitter_client, articles, state=state, dry_run=dry_run)
+    post_articles(twitter_client, articles, state=state, dry_run=dry_run, bootstrap_count=bootstrap_count)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -503,6 +556,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     LOGGER.info("Starting Bitcoin mining news poller")
+    LOGGER.info("Effective query: %s", args.query)
+    if args.bootstrap_count > 0:
+        bootstrap_status = "active" if not state.get("bootstrapCompleted", False) else "completed"
+        LOGGER.info("Bootstrap mode: %s (count: %d)", bootstrap_status, args.bootstrap_count)
+    else:
+        LOGGER.info("Bootstrap mode: disabled")
     LOGGER.debug("Using state file at %s", state_path)
 
     try:
@@ -514,6 +573,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 article_lang=args.article_lang,
                 state=state,
                 dry_run=args.dry_run,
+                bootstrap_count=args.bootstrap_count,
             )
             save_state(state_path, state)
             if not args.loop:
