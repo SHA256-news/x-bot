@@ -20,3 +20,6 @@ Thumbs.db
 
 # Bot state file (if using default location)
 bot/state.json
+
+# Simplebot state files (for development)
+simplebot-state.json
