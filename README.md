@@ -59,6 +59,7 @@ Optional environment variables provide additional control:
 | `BOT_ARTICLE_LANG` | *(unset)* | Restrict Event Registry results to a specific ISO language code. |
 | `BOT_POLL_INTERVAL` | `300` | Delay (in seconds) between polls when running with `--loop`. |
 | `BOT_LOG_LEVEL` | `INFO` | Logging verbosity. |
+| `BOT_PAUSE_FILE` | *(unset)* | File path that pauses the bot when it exists. |
 
 The state file stores the last known `updatesAfterNewsUri`,
 `updatesAfterBlogUri`, `updatesAfterPrUri`, and a short history of article
@@ -83,12 +84,30 @@ Key command-line options:
 - `--loop`: continuously poll Event Registry at the configured interval.
 - `--dry-run`: fetch and log new articles without posting to Twitter.
 - `--state-file`: override the location of the JSON state file.
+- `--pause-file`: specify a file path that pauses the bot when it exists.
 
 Example (continuous polling every 10 minutes):
 
 ```bash
 BOT_POLL_INTERVAL=600 python -m bot.main --loop
 ```
+
+### Pausing the Bot
+
+To temporarily pause the bot without stopping it completely, use the `--pause-file` option:
+
+```bash
+# Start the bot with pause functionality
+python -m bot.main --loop --pause-file /tmp/bot_pause.txt
+
+# In another terminal, create the pause file to pause the bot
+touch /tmp/bot_pause.txt
+
+# Remove the file to resume the bot
+rm /tmp/bot_pause.txt
+```
+
+When paused, the bot will check for the pause file's removal every poll interval and resume operation once the file is deleted.
 
 ## Development Notes
 

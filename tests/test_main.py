@@ -173,6 +173,30 @@ class MainModuleTests(unittest.TestCase):
             self.assertEqual(saved["updatesAfterNewsUri"], "news")
             self.assertIn("postedArticleUris", saved)
 
+    def test_check_pause_returns_false_when_no_pause_file_specified(self):
+        self.assertFalse(main.check_pause(None))
+        self.assertFalse(main.check_pause(""))
+
+    def test_check_pause_returns_false_when_pause_file_does_not_exist(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            pause_file = Path(tempdir) / "nonexistent_pause.txt"
+            self.assertFalse(main.check_pause(str(pause_file)))
+
+    def test_check_pause_returns_true_when_pause_file_exists(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            pause_file = Path(tempdir) / "pause.txt"
+            pause_file.touch()  # Create the file
+            self.assertTrue(main.check_pause(str(pause_file)))
+
+    def test_parse_args_includes_pause_file_option(self):
+        args = main.parse_args(["--pause-file", "/tmp/pause.txt"])
+        self.assertEqual(args.pause_file, "/tmp/pause.txt")
+
+    def test_parse_args_pause_file_defaults_to_env_variable(self):
+        with mock.patch.dict(os.environ, {"BOT_PAUSE_FILE": "/env/pause.txt"}):
+            args = main.parse_args([])
+            self.assertEqual(args.pause_file, "/env/pause.txt")
+
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
