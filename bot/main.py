@@ -457,7 +457,33 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=os.getenv("BOT_LOG_LEVEL", "INFO"),
         help="Logging verbosity (default: %(default)s)",
     )
+    parser.add_argument(
+        "--pause-file",
+        default=os.getenv("BOT_PAUSE_FILE"),
+        help="File path that pauses the bot when it exists",
+    )
     return parser.parse_args(argv)
+
+
+def check_pause(pause_file_path: Optional[str]) -> bool:
+    """Return True if the bot should be paused based on pause file existence."""
+    if not pause_file_path:
+        return False
+    
+    pause_file = Path(pause_file_path).expanduser().resolve()
+    return pause_file.exists()
+
+
+def wait_for_resume(pause_file_path: str, poll_interval: int) -> None:
+    """Wait while the pause file exists, checking periodically for its removal."""
+    pause_file = Path(pause_file_path).expanduser().resolve()
+    LOGGER.info("Bot is paused due to pause file: %s", pause_file)
+    
+    while pause_file.exists():
+        LOGGER.debug("Bot remains paused, checking again in %s seconds", poll_interval)
+        time.sleep(max(1, poll_interval))
+    
+    LOGGER.info("Pause file removed, resuming bot operation")
 
 
 def run_once(
@@ -507,6 +533,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         while True:
+            # Check if bot should be paused before running
+            if check_pause(args.pause_file):
+                wait_for_resume(args.pause_file, args.poll_interval)
+            
             run_once(
                 er=er,
                 twitter_client=twitter_client,
@@ -518,8 +548,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             save_state(state_path, state)
             if not args.loop:
                 break
-            LOGGER.debug("Sleeping for %s seconds", args.poll_interval)
-            time.sleep(max(1, args.poll_interval))
+            
+            # Check if bot should be paused before sleeping
+            if check_pause(args.pause_file):
+                wait_for_resume(args.pause_file, args.poll_interval)
+            else:
+                LOGGER.debug("Sleeping for %s seconds", args.poll_interval)
+                time.sleep(max(1, args.poll_interval))
     except KeyboardInterrupt:
         LOGGER.info("Interrupted by user; exiting.")
 
